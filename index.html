@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quantum Bloom</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07080f;
+        --panel: rgba(255, 255, 255, 0.08);
+        --text: #dce7ff;
+        --muted: #9fb0d8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial, sans-serif;
+        background: radial-gradient(circle at 20% 20%, #1a1f45 0%, var(--bg) 35%),
+          radial-gradient(circle at 85% 10%, #311742 0%, transparent 40%),
+          radial-gradient(circle at 40% 90%, #0f3053 0%, transparent 45%), var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      canvas {
+        position: fixed;
+        inset: 0;
+      }
+
+      .hud {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 2;
+        width: min(90vw, 360px);
+        padding: 1rem;
+        border-radius: 14px;
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      p {
+        margin: 0.5rem 0 0;
+        color: var(--muted);
+        line-height: 1.4;
+        font-size: 0.95rem;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        margin-top: 0.85rem;
+        background: rgba(255, 255, 255, 0.1);
+        font-size: 0.8rem;
+        color: #d6e3ff;
+      }
+
+      .dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: linear-gradient(45deg, #92fbff, #d2a5ff, #ffdf8c);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="field"></canvas>
+    <section class="hud">
+      <h1>Quantum Bloom</h1>
+      <p>
+        Move your cursor to bend a living starfield. Click to release a pulse. Hit
+        <strong>Space</strong> for a color shift.
+      </p>
+      <div class="pill"><span class="dot"></span>Generative art · zero dependencies</div>
+    </section>
+
+    <script>
+      const canvas = document.getElementById('field');
+      const ctx = canvas.getContext('2d');
+
+      let w = window.innerWidth;
+      let h = window.innerHeight;
+      let hue = 210;
+      const particles = [];
+      const mouse = { x: w / 2, y: h / 2, power: 0 };
+
+      const resize = () => {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      };
+      window.addEventListener('resize', resize);
+      resize();
+
+      class Particle {
+        constructor() {
+          this.reset();
+          this.x = Math.random() * w;
+          this.y = Math.random() * h;
+        }
+
+        reset() {
+          this.vx = (Math.random() - 0.5) * 0.7;
+          this.vy = (Math.random() - 0.5) * 0.7;
+          this.size = Math.random() * 2.4 + 0.6;
+          this.energy = Math.random() * 0.8 + 0.3;
+        }
+
+        update() {
+          const dx = mouse.x - this.x;
+          const dy = mouse.y - this.y;
+          const d2 = dx * dx + dy * dy + 0.001;
+          const force = (mouse.power * 2200) / d2;
+
+          this.vx += (dx / Math.sqrt(d2)) * force;
+          this.vy += (dy / Math.sqrt(d2)) * force;
+
+          this.vx *= 0.985;
+          this.vy *= 0.985;
+          this.x += this.vx;
+          this.y += this.vy;
+
+          if (this.x < -20 || this.x > w + 20 || this.y < -20 || this.y > h + 20) {
+            this.x = Math.random() * w;
+            this.y = Math.random() * h;
+            this.reset();
+          }
+        }
+
+        draw(tick) {
+          const glow = Math.sin(tick * 0.02 + this.x * 0.01 + this.y * 0.01) * 0.5 + 0.5;
+          const alpha = 0.25 + glow * 0.55;
+          const tone = (hue + this.energy * 120 + glow * 70) % 360;
+
+          ctx.beginPath();
+          ctx.fillStyle = `hsla(${tone}, 95%, 72%, ${alpha})`;
+          ctx.arc(this.x, this.y, this.size + glow * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      for (let i = 0; i < 480; i += 1) particles.push(new Particle());
+
+      const render = (tick = 0) => {
+        ctx.fillStyle = 'rgba(5, 7, 18, 0.18)';
+        ctx.fillRect(0, 0, w, h);
+
+        particles.forEach((p) => {
+          p.update();
+          p.draw(tick);
+        });
+
+        mouse.power *= 0.965;
+        requestAnimationFrame(render);
+      };
+      render();
+
+      window.addEventListener('pointermove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.power = Math.min(mouse.power + 0.03, 1.7);
+      });
+
+      window.addEventListener('pointerdown', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.power = 2.8;
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          hue = (hue + 67) % 360;
+          particles.forEach((p) => {
+            p.vx += (Math.random() - 0.5) * 2;
+            p.vy += (Math.random() - 0.5) * 2;
+          });
+        }
+      });
+    </script>
+  </body>
+</html>
